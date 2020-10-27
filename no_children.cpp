@@ -116,7 +116,7 @@ int main (int argc, char *argv[]) {
     WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
     std::cout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
 
-    // Duplicate the console users token to run an unelevated process in THEIR context
+    // Duplicate the console users token to run an (unelevated) process completely in THEIR context
     /*
     HANDLE hDupUserSessionToken;
     if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
@@ -138,7 +138,7 @@ int main (int argc, char *argv[]) {
 
     HANDLE hNewProcessToken = hDupToken;
 
-    // End testing session stuff
+    // End session stuff
 
     HANDLE job = CreateJobObject(NULL, NULL);
     if (! job) {
@@ -158,7 +158,7 @@ int main (int argc, char *argv[]) {
         JOB_OBJECT_LIMIT_ACTIVE_PROCESS &
         ~JOB_OBJECT_LIMIT_BREAKAWAY_OK &
         ~JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK ;
-    jobLimit.BasicLimitInformation.ActiveProcessLimit = 2;
+    jobLimit.BasicLimitInformation.ActiveProcessLimit = 1;
 
     if (! SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jobLimit, sizeof(jobLimit)) ) {
         DWORD err = GetLastError();
@@ -180,6 +180,7 @@ int main (int argc, char *argv[]) {
     BOOL bInJob = FALSE;
     IsProcessInJob(GetCurrentProcess(), NULL, &bInJob);
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION currentJob = { };
+
     if (bInJob) {
         QueryInformationJobObject(
             NULL,
@@ -199,13 +200,9 @@ int main (int argc, char *argv[]) {
         }
     }
 
-    // The "new console" is necessary. Otherwise the process can hang our main process
     if (!CreateProcessAsUser(hNewProcessToken, argv[1], NULL, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
         DWORD err = GetLastError();
         CloseHandle(hNewProcessToken);
-
-        // Without switching user tokens/context, old call:
-        //if (! CreateProcess(argv[1], 0, 0, 0, FALSE, ProcessFlags, 0, 0, &si, &pi) ) {
 
         std::string message = std::system_category().message(err);
 
