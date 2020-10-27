@@ -86,7 +86,7 @@ int main (int argc, char *argv[]) {
 
     HANDLE hCurrentProcess = NULL;
 
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_READ, &hCurrentProcess)) {
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_READ | TOKEN_DUPLICATE, &hCurrentProcess)) {
         DWORD err = GetLastError();
         std::cerr << "OpenProcessToken failed with: " << err << std::endl;
         return -22;
@@ -116,7 +116,8 @@ int main (int argc, char *argv[]) {
     WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
     std::cout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
 
-    // Duplicate the console users token
+    // Duplicate the console users token to run an unelevated process in THEIR context
+    /*
     HANDLE hDupUserSessionToken;
     if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
         CloseHandle(hUserSessionToken);
@@ -124,6 +125,18 @@ int main (int argc, char *argv[]) {
         return -800;
     }
     CloseHandle(hUserSessionToken);
+    */
+
+    // Duplicate our highly privileged token and adjust the SessionID to start a process in OUR context but on the users desktop
+    HANDLE hDupToken;
+    if (!DuplicateTokenEx(hCurrentProcess, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
+        std::cerr << "FAILED to duplicate our/this process token! " << GetLastError() << std::endl;
+        return -800;
+    }
+
+    SetTokenInformation(hDupToken, TokenSessionId, &ConsoleSessionId, sizeof(int));
+
+    HANDLE hNewProcessToken = hDupToken;
 
     // End testing session stuff
 
@@ -187,9 +200,9 @@ int main (int argc, char *argv[]) {
     }
 
     // The "new console" is necessary. Otherwise the process can hang our main process
-    if (!CreateProcessAsUser(hDupUserSessionToken, argv[1], NULL, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessAsUser(hNewProcessToken, argv[1], NULL, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
         DWORD err = GetLastError();
-        CloseHandle(hDupUserSessionToken);
+        CloseHandle(hNewProcessToken);
 
         // Without switching user tokens/context, old call:
         //if (! CreateProcess(argv[1], 0, 0, 0, FALSE, ProcessFlags, 0, 0, &si, &pi) ) {
@@ -203,7 +216,7 @@ int main (int argc, char *argv[]) {
         return -4;
     }
 
-    CloseHandle(hDupUserSessionToken);
+    CloseHandle(hNewProcessToken);
 
     if (! AssignProcessToJobObject(job, pi.hProcess) ) {
         DWORD err = GetLastError();
