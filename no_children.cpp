@@ -12,40 +12,58 @@ BOOL EnablePrivilege(
     HANDLE hToken,        // access token handle
     LPCTSTR lpszPrivilege // name of privilege to enable/disable
 ) {
+    TOKEN_PRIVILEGES tp;
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
     // Look up the ID of the SE_TCB_NAME privilege we need to call WTSQueryUserToken
     // https://docs.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
-    LUID luid;
-    if ( !LookupPrivilegeValue( 
+    if (!LookupPrivilegeValue( 
         NULL,
         lpszPrivilege,
-        &luid ))
-    {
+        &tp.Privileges[0].Luid
+    )) {
         printf("LookupPrivilegeValue error: %u\n", GetLastError() ); 
         return FALSE; 
     } else {
         printf("LookupPrivilegeValue Success\n");
     }
 
-    // Enable the SE_TCB_NAME privilege for our process
-    TOKEN_PRIVILEGES tp;
-
-    tp.PrivilegeCount = 1;
-    tp.Privileges[0].Luid = luid;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
     if (!AdjustTokenPrivileges(
         hToken,
         FALSE,
         &tp,
-        sizeof(TOKEN_PRIVILEGES),
+        0,
         (PTOKEN_PRIVILEGES) NULL,
-        (PDWORD) NULL
+        0
     )) {
         printf("AdjustTokenPrivileges error: %u\n", GetLastError());
 		return FALSE;
     };
 
 	return TRUE;
+}
+
+std::string LuidToName(LUID luid) {
+	DWORD len = 0;
+	LPSTR name;
+	LookupPrivilegeNameA(NULL, &luid, NULL, &len);
+	name = (LPSTR)LocalAlloc(LPTR, len);
+	LookupPrivilegeNameA(NULL, &luid, name, &len);
+	std::string priv(name);
+	LocalFree(name);
+	return priv;
+}
+
+void PrintTokenPriv(PTOKEN_PRIVILEGES ptoken_privileges) {
+	for (int i = 0, c = ptoken_privileges->PrivilegeCount; i < c; i++) {
+		std::cout << LuidToName(ptoken_privileges->Privileges[i].Luid);
+		if (i != c - 1) {
+			std::cout << ",";
+		}
+	}
+    std::cout << std::endl;
 }
 
 int main (int argc, char *argv[]) {
@@ -66,21 +84,37 @@ int main (int argc, char *argv[]) {
     // Testing session stuff
     //
 
-    HANDLE hCurrentProcess;
+    HANDLE hCurrentProcess = NULL;
 
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hCurrentProcess)) {
-        std::cerr << "OpenProcessToken failed with: " << GetLastError() << std::endl;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_READ, &hCurrentProcess)) {
+        DWORD err = GetLastError();
+        std::cerr << "OpenProcessToken failed with: " << err << std::endl;
         return -22;
     }
 
-    BOOL bPrivEnabled = EnablePrivilege(&hCurrentProcess, "SeTcbPrivilege");
+    PTOKEN_PRIVILEGES ptoken_privileges;
+    DWORD dwLength = 0;
+
+    // This first call with a NULL buffer is just to get the needed struct size in dwLength
+    GetTokenInformation(hCurrentProcess, TokenPrivileges, NULL, 0, &dwLength);
+    ptoken_privileges = (PTOKEN_PRIVILEGES)LocalAlloc(LPTR, dwLength);
+
+    if (!GetTokenInformation(hCurrentProcess, TokenPrivileges, ptoken_privileges, dwLength, &dwLength)) {
+        std::cout << "FAILED to GetTokenInformation 2: " << GetLastError() << std::endl;
+    }
+
+    std::cout << "struc length: " << dwLength << std::endl;
+	PrintTokenPriv(ptoken_privileges);
+
+    // Enable the SE_TCB_NAME privilege for our process
+    BOOL bPrivEnabled = EnablePrivilege(hCurrentProcess, SE_TCB_NAME);
     std::cout << "Privilege was Enabled? " << bPrivEnabled << std::endl;
 
     HANDLE hUserSessionToken;
     int ConsoleSessionId = WTSGetActiveConsoleSessionId();
     std::cout << "Console Session ID: " << ConsoleSessionId << std::endl;
     WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
-    std::cout << GetLastError() << std::endl;
+    std::cout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
 
     //
     // End testing session stuff
