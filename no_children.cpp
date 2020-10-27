@@ -3,6 +3,51 @@
 #include <iomanip> // for setfill and setw
 #include <system_error> // to avoid having to use FormatMessage()
 
+#include <wtsapi32.h> // for getting session information
+#pragma comment(lib, "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.19041.0\\um\\x86\\wtsapi32.lib") // this precents the program from compiling to x64 for now! FIX
+#pragma comment(lib, "advapi32.lib") // For token privilege lookup and adjustment stuff
+
+
+BOOL EnablePrivilege(
+    HANDLE hToken,        // access token handle
+    LPCTSTR lpszPrivilege // name of privilege to enable/disable
+) {
+    // Look up the ID of the SE_TCB_NAME privilege we need to call WTSQueryUserToken
+    // https://docs.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
+    LUID luid;
+    if ( !LookupPrivilegeValue( 
+        NULL,
+        lpszPrivilege,
+        &luid ))
+    {
+        printf("LookupPrivilegeValue error: %u\n", GetLastError() ); 
+        return FALSE; 
+    } else {
+        printf("LookupPrivilegeValue Success\n");
+    }
+
+    // Enable the SE_TCB_NAME privilege for our process
+    TOKEN_PRIVILEGES tp;
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid = luid;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!AdjustTokenPrivileges(
+        hToken,
+        FALSE,
+        &tp,
+        sizeof(TOKEN_PRIVILEGES),
+        (PTOKEN_PRIVILEGES) NULL,
+        (PDWORD) NULL
+    )) {
+        printf("AdjustTokenPrivileges error: %u\n", GetLastError());
+		return FALSE;
+    };
+
+	return TRUE;
+}
+
 int main (int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Not enough arguments: Supply the path of an executable!" << std::endl;
@@ -17,6 +62,28 @@ int main (int argc, char *argv[]) {
         std::cerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
         return -1;
     }
+
+    // Testing session stuff
+    //
+
+    HANDLE hCurrentProcess;
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hCurrentProcess)) {
+        std::cerr << "OpenProcessToken failed with: " << GetLastError() << std::endl;
+        return -22;
+    }
+
+    BOOL bPrivEnabled = EnablePrivilege(&hCurrentProcess, "SeTcbPrivilege");
+    std::cout << "Privilege was Enabled? " << bPrivEnabled << std::endl;
+
+    HANDLE hUserSessionToken;
+    int ConsoleSessionId = WTSGetActiveConsoleSessionId();
+    std::cout << "Console Session ID: " << ConsoleSessionId << std::endl;
+    WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
+    std::cout << GetLastError() << std::endl;
+
+    //
+    // End testing session stuff
 
     HANDLE job = CreateJobObject(NULL, NULL);
     if (! job) {
