@@ -158,7 +158,7 @@ int main (int argc, char *argv[]) {
         JOB_OBJECT_LIMIT_ACTIVE_PROCESS &
         ~JOB_OBJECT_LIMIT_BREAKAWAY_OK &
         ~JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK ;
-    jobLimit.BasicLimitInformation.ActiveProcessLimit = 1;
+    jobLimit.BasicLimitInformation.ActiveProcessLimit = 2;
 
     if (! SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jobLimit, sizeof(jobLimit)) ) {
         DWORD err = GetLastError();
