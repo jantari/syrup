@@ -116,7 +116,15 @@ int main (int argc, char *argv[]) {
     WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
     std::cout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
 
-    //
+    // Duplicate the console users token
+    HANDLE hDupUserSessionToken;
+    if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
+        CloseHandle(hUserSessionToken);
+        std::cerr << "FAILED to duplicate console users token!" << std::endl;
+        return -800;
+    }
+    CloseHandle(hUserSessionToken);
+
     // End testing session stuff
 
     HANDLE job = CreateJobObject(NULL, NULL);
@@ -151,8 +159,9 @@ int main (int argc, char *argv[]) {
     }
 
     STARTUPINFO si = { sizeof(si) };
+    si.wShowWindow = TRUE;
     PROCESS_INFORMATION pi;
-    DWORD ProcessFlags = CREATE_SUSPENDED | DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB;
+    DWORD ProcessFlags = CREATE_SUSPENDED | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB;
 
     // Check if we are currently already in a job, to make diagnosing problems easier
     BOOL bInJob = FALSE;
@@ -177,8 +186,13 @@ int main (int argc, char *argv[]) {
         }
     }
 
-    if (! CreateProcess(argv[1], 0, 0, 0, FALSE, ProcessFlags, 0, 0, &si, &pi) ) {
+    // The "new console" is necessary. Otherwise the process can hang our main process
+    if (!CreateProcessAsUser(hDupUserSessionToken, argv[1], NULL, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
         DWORD err = GetLastError();
+        CloseHandle(hDupUserSessionToken);
+
+        // Without switching user tokens/context, old call:
+        //if (! CreateProcess(argv[1], 0, 0, 0, FALSE, ProcessFlags, 0, 0, &si, &pi) ) {
 
         std::string message = std::system_category().message(err);
 
@@ -188,6 +202,8 @@ int main (int argc, char *argv[]) {
         std::cerr << std::endl;
         return -4;
     }
+
+    CloseHandle(hDupUserSessionToken);
 
     if (! AssignProcessToJobObject(job, pi.hProcess) ) {
         DWORD err = GetLastError();
