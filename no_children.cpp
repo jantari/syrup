@@ -108,17 +108,18 @@ int main (int argc, char *argv[]) {
 
     // Enable the SE_TCB_NAME privilege for our process
     BOOL bPrivEnabled = EnablePrivilege(hCurrentProcess, SE_TCB_NAME);
-    std::cout << "Privilege was Enabled? " << bPrivEnabled << std::endl;
+    std::cout << "SE_TCB_NAME privilege was enabled? " << bPrivEnabled << std::endl;
 
-    HANDLE hUserSessionToken;
     int ConsoleSessionId = WTSGetActiveConsoleSessionId();
     std::cout << "Console Session ID: " << ConsoleSessionId << std::endl;
+
+    // Duplicate the console users token to run an (probably unelevated) process completely in THEIR context
+    /*
+    HANDLE hUserSessionToken;
+    HANDLE hDupUserSessionToken;
     WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
     std::cout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
 
-    // Duplicate the console users token to run an (unelevated) process completely in THEIR context
-    /*
-    HANDLE hDupUserSessionToken;
     if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
         CloseHandle(hUserSessionToken);
         std::cerr << "FAILED to duplicate console users token!" << std::endl;
