@@ -10,7 +10,7 @@
 
 BOOL EnablePrivilege(
     HANDLE hToken,        // access token handle
-    LPCTSTR lpszPrivilege // name of privilege to enable/disable
+    LPCTSTR lpszPrivilege // name of privilege to enable
 ) {
     TOKEN_PRIVILEGES tp;
 
@@ -39,30 +39,30 @@ BOOL EnablePrivilege(
         0
     )) {
         printf("AdjustTokenPrivileges error: %u\n", GetLastError());
-		return FALSE;
+        return FALSE;
     };
 
-	return TRUE;
+    return TRUE;
 }
 
 std::string LuidToName(LUID luid) {
-	DWORD len = 0;
-	LPSTR name;
-	LookupPrivilegeNameA(NULL, &luid, NULL, &len);
-	name = (LPSTR)LocalAlloc(LPTR, len);
-	LookupPrivilegeNameA(NULL, &luid, name, &len);
-	std::string priv(name);
-	LocalFree(name);
-	return priv;
+    DWORD len = 0;
+    LPSTR name;
+    LookupPrivilegeNameA(NULL, &luid, NULL, &len);
+    name = (LPSTR)LocalAlloc(LPTR, len);
+    LookupPrivilegeNameA(NULL, &luid, name, &len);
+    std::string priv(name);
+    LocalFree(name);
+    return priv;
 }
 
 void PrintTokenPriv(PTOKEN_PRIVILEGES ptoken_privileges) {
 	for (int i = 0, c = ptoken_privileges->PrivilegeCount; i < c; i++) {
-		std::cout << LuidToName(ptoken_privileges->Privileges[i].Luid);
-		if (i != c - 1) {
-			std::cout << ",";
-		}
-	}
+        std::cout << LuidToName(ptoken_privileges->Privileges[i].Luid);
+        if (i != c - 1) {
+            std::cout << ",";
+        }
+    }
     std::cout << std::endl;
 }
 
@@ -81,7 +81,7 @@ int main (int argc, char *argv[]) {
         return -1;
     }
 
-    // Testing session stuff
+    // User session and token stuff
     //
 
     HANDLE hCurrentProcess = NULL;
@@ -139,7 +139,8 @@ int main (int argc, char *argv[]) {
 
     HANDLE hNewProcessToken = hDupToken;
 
-    // End session stuff
+    //
+    // End user session and token stuff
 
     HANDLE job = CreateJobObject(NULL, NULL);
     if (! job) {

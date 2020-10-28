@@ -1,4 +1,4 @@
-### Use
+## Use
 
 1. Create scheduled task as the standard user:
 
@@ -16,7 +16,7 @@ Set-ScheduledTask -TaskName gMSA_Test -Principal $principal
 
 3. Run it! As the standard user
 
-### Testing
+## Testing
 
 The program clones the current token it is executing as. To test the program when running as SYSTEM (so it clones the SYSTEM token)
 run it through `psexec -s`:
@@ -25,3 +25,9 @@ run it through `psexec -s`:
 .\PsExec.exe -s -w "$pwd" -i cmd.exe /k no_children.exe C:\windows\system32\cmd.exe
 ```
 
+## Building
+
+Requirements:
+
+1. Microsoft Visual C++ Build Tools (e.g. 2017 or 2019)
+2. `wtsapi32.lib` from the Windows SDK
