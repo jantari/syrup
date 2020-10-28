@@ -19,4 +19,6 @@ ECHO.
 ECHO Building: %LASTCOMMIT%%DIRTY%
 ECHO.
 
-cl.exe no_children.cpp /EHsc
+rc.exe /d VRC_FILEDESCRIPTION="%LASTCOMMIT%%DIRTY%" /r versioninfo.rc
+
+cl.exe versioninfo.res no_children.cpp /EHsc
