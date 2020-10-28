@@ -45,6 +45,14 @@ BOOL EnablePrivilege(
     return TRUE;
 }
 
+void PrintError(DWORD error, std::string message = "ERROR!") {
+    std::cout << std::endl;
+    std::string errorMeaning = std::system_category().message(error);
+    std::cerr << message << std::endl;
+    std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << error << std::dec << " ";
+    std::cerr << "(" << error << ") " << errorMeaning << std::endl;
+}
+
 std::string LuidToName(LUID luid) {
     DWORD len = 0;
     LPSTR name;
@@ -57,10 +65,10 @@ std::string LuidToName(LUID luid) {
 }
 
 void PrintTokenPriv(PTOKEN_PRIVILEGES ptoken_privileges) {
-	for (int i = 0, c = ptoken_privileges->PrivilegeCount; i < c; i++) {
+    for (int i = 0, c = ptoken_privileges->PrivilegeCount; i < c; i++) {
         std::cout << LuidToName(ptoken_privileges->Privileges[i].Luid);
         if (i != c - 1) {
-            std::cout << ",";
+            std::cout << ", ";
         }
     }
     std::cout << std::endl;
@@ -88,7 +96,7 @@ int main (int argc, char *argv[]) {
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_READ | TOKEN_DUPLICATE, &hCurrentProcess)) {
         DWORD err = GetLastError();
-        std::cerr << "OpenProcessToken failed with: " << err << std::endl;
+        PrintError(err, "OpenProcessToken failed");
         return -22;
     }
 
@@ -103,7 +111,7 @@ int main (int argc, char *argv[]) {
         std::cout << "FAILED to GetTokenInformation 2: " << GetLastError() << std::endl;
     }
 
-    std::cout << "struc length: " << dwLength << std::endl;
+    std::cout << "TokenPrivileges size: " << dwLength << std::endl;
 	PrintTokenPriv(ptoken_privileges);
 
     // Enable the SE_TCB_NAME privilege for our process
@@ -131,7 +139,7 @@ int main (int argc, char *argv[]) {
     // Duplicate our highly privileged token and adjust the SessionID to start a process in OUR context but on the users desktop
     HANDLE hDupToken;
     if (!DuplicateTokenEx(hCurrentProcess, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
-        std::cerr << "FAILED to duplicate our/this process token! " << GetLastError() << std::endl;
+        PrintError(GetLastError(), "Failed to duplicate our/this process token.");
         return -800;
     }
 
@@ -144,13 +152,7 @@ int main (int argc, char *argv[]) {
 
     HANDLE job = CreateJobObject(NULL, NULL);
     if (! job) {
-        DWORD err = GetLastError();
-
-        std::string message = std::system_category().message(err);
-
-        std::cerr << "ERROR: Could not create job object." <<std::endl;
-        std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << err << std::dec << " ";
-        std::cerr << "(" << err << ") " << message << std::endl;
+        PrintError(GetLastError(), "Could not create job object.");
         return -2;
     }
 
@@ -163,13 +165,7 @@ int main (int argc, char *argv[]) {
     jobLimit.BasicLimitInformation.ActiveProcessLimit = 1;
 
     if (! SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jobLimit, sizeof(jobLimit)) ) {
-        DWORD err = GetLastError();
-
-        std::string message = std::system_category().message(err);
-
-        std::cerr << "ERROR: Could not set job information on job." <<std::endl;
-        std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << err << std::dec << " ";
-        std::cerr << "(" << err << ") " << message << std::endl;
+        PrintError(GetLastError(), "Could not set job information on job");
         return -3;
     }
 
@@ -206,12 +202,7 @@ int main (int argc, char *argv[]) {
         DWORD err = GetLastError();
         CloseHandle(hNewProcessToken);
 
-        std::string message = std::system_category().message(err);
-
-        std::cerr << "ERROR: Could not create process." << std::endl;
-        std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << err << std::dec << " ";
-        std::cerr << "(" << err << ") " << message << std::endl;
-        std::cerr << std::endl;
+        PrintError(err, "Could not create process.");
         return -4;
     }
 
@@ -219,12 +210,7 @@ int main (int argc, char *argv[]) {
 
     if (! AssignProcessToJobObject(job, pi.hProcess) ) {
         DWORD err = GetLastError();
-
-        std::string message = std::system_category().message(err);
-
-        std::cerr << "ERROR: Could not assign process to job." <<std::endl;
-        std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << err << std::dec << " ";
-        std::cerr << "(" << err << ") " << message << std::endl;
+        PrintError(err, "Could not assign process to job.");
         return -5;
     }
 
