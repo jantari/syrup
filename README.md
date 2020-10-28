@@ -10,7 +10,7 @@ Register-ScheduledTask gMSA_Test -Description "gMSA_Test" –Action $action
 2. Set the scheduled task to run as SYSTEM from an elevated Powershell:
 
 ```powershell
-$principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType Password -RunLevel Highest
+$principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType Password
 Set-ScheduledTask -TaskName gMSA_Test -Principal $principal
 ```
 
