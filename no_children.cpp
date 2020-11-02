@@ -7,6 +7,13 @@
 #pragma comment(lib, "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.19041.0\\um\\x86\\wtsapi32.lib") // this precents the program from compiling to x64 for now! FIX
 #pragma comment(lib, "advapi32.lib") // For token privilege lookup and adjustment stuff
 
+void PrintError(DWORD error, std::string message = "ERROR!") {
+    std::cout << std::endl;
+    std::string errorMeaning = std::system_category().message(error);
+    std::cerr << message << std::endl;
+    std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << error << std::dec << " ";
+    std::cerr << "(" << error << ") " << errorMeaning << std::endl;
+}
 
 BOOL SetPrivilege(
     HANDLE hToken,         // access token handle
@@ -29,10 +36,8 @@ BOOL SetPrivilege(
         lpszPrivilege,
         &tp.Privileges[0].Luid
     )) {
-        printf("LookupPrivilegeValue error: %u\n", GetLastError() ); 
+        PrintError(GetLastError(), "LookupPrivilegeValue failed");
         return FALSE; 
-    } else {
-        printf("LookupPrivilegeValue Success\n");
     }
 
     if (!AdjustTokenPrivileges(
@@ -43,27 +48,19 @@ BOOL SetPrivilege(
         (PTOKEN_PRIVILEGES) NULL,
         0
     )) {
-        printf("AdjustTokenPrivileges error: %u\n", GetLastError());
+        PrintError(GetLastError(), "AdjustTokenPrivileges failed");
         return FALSE;
     };
 
     return TRUE;
 }
 
-void PrintError(DWORD error, std::string message = "ERROR!") {
-    std::cout << std::endl;
-    std::string errorMeaning = std::system_category().message(error);
-    std::cerr << message << std::endl;
-    std::cerr << "0x" << std::setfill('0') <<std::setw(sizeof(DWORD)*2) << std::hex << error << std::dec << " ";
-    std::cerr << "(" << error << ") " << errorMeaning << std::endl;
-}
-
 std::string LuidToName(LUID luid) {
     DWORD len = 0;
     LPSTR name;
-    LookupPrivilegeNameA(NULL, &luid, NULL, &len);
+    LookupPrivilegeName(NULL, &luid, NULL, &len);
     name = (LPSTR)LocalAlloc(LPTR, len);
-    LookupPrivilegeNameA(NULL, &luid, name, &len);
+    LookupPrivilegeName(NULL, &luid, name, &len);
     std::string priv(name);
     LocalFree(name);
     return priv;
