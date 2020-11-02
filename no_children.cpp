@@ -8,17 +8,22 @@
 #pragma comment(lib, "advapi32.lib") // For token privilege lookup and adjustment stuff
 
 
-BOOL EnablePrivilege(
-    HANDLE hToken,        // access token handle
-    LPCTSTR lpszPrivilege // name of privilege to enable
+BOOL SetPrivilege(
+    HANDLE hToken,         // access token handle
+    LPCTSTR lpszPrivilege, // name of privilege to enable
+    BOOL bEnablePrivilege  // true to enable, false to disable
 ) {
     TOKEN_PRIVILEGES tp;
 
     tp.PrivilegeCount = 1;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    if (bEnablePrivilege) {
+        // Enable the privilege
+        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    } else {
+        // Disable the privilege
+        tp.Privileges[0].Attributes = 0;
+    }
 
-    // Look up the ID of the SE_TCB_NAME privilege we need to call WTSQueryUserToken
-    // https://docs.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
     if (!LookupPrivilegeValue( 
         NULL,
         lpszPrivilege,
@@ -114,12 +119,15 @@ int main (int argc, char *argv[]) {
     std::cout << "TokenPrivileges size: " << dwLength << std::endl;
 	PrintTokenPriv(ptoken_privileges);
 
-    // Enable the SE_TCB_NAME privilege for our process
-    BOOL bPrivEnabled = EnablePrivilege(hCurrentProcess, SE_TCB_NAME);
+    // Enable the SE_TCB_NAME privilege for our process, needed to call WTSQueryUserToken
+    // https://docs.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
+    BOOL bPrivEnabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, TRUE);
     std::cout << "SE_TCB_NAME privilege was enabled? " << bPrivEnabled << std::endl;
 
     int ConsoleSessionId = WTSGetActiveConsoleSessionId();
     std::cout << "Console Session ID: " << ConsoleSessionId << std::endl;
+    BOOL bPrivDisabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, FALSE);
+    std::cout << "SE_TCB_NAME privilege was disabled? " << bPrivDisabled << std::endl;
 
     // Duplicate the console users token to run an (probably unelevated) process completely in THEIR context
     /*
