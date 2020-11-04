@@ -79,14 +79,14 @@ void PrintTokenPriv(PTOKEN_PRIVILEGES ptoken_privileges) {
 int main (int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Not enough arguments: Supply the path of an executable!" << std::endl;
-        std::cerr << "Syntax: no_children.exe path\\to\\file" << std::endl;
+        std::cerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
         std::cerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
         return -1;
     }
 
     if (argc > 2) {
         std::cerr << "Too many arguments: Supply only the path of an executable and wrap it in quotes if it contains spaces!" << std::endl;
-        std::cerr << "Syntax: no_children.exe path\\to\\file" << std::endl;
+        std::cerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
         std::cerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
         return -1;
     }

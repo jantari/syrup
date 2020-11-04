@@ -21,7 +21,7 @@ ECHO.
 
 rc.exe /d VRC_FILEDESCRIPTION="%LASTCOMMIT%%DIRTY%" /r versioninfo.rc
 
-cl.exe versioninfo.res no_children.cpp /EHsc
+cl.exe versioninfo.res syrup.cpp /EHsc
 
-DEL no_children.obj
+DEL syrup.obj
 DEL versioninfo.res
