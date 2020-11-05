@@ -81,14 +81,14 @@ int main (int argc, char *argv[]) {
         std::cerr << "Not enough arguments: Supply the path of an executable!" << std::endl;
         std::cerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
         std::cerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
-        return -1;
+        return 1;
     }
 
     if (argc > 2) {
         std::cerr << "Too many arguments: Supply only the path of an executable and wrap it in quotes if it contains spaces!" << std::endl;
         std::cerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
         std::cerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
-        return -1;
+        return 1;
     }
 
     // User session and token stuff
@@ -99,7 +99,7 @@ int main (int argc, char *argv[]) {
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_READ | TOKEN_DUPLICATE, &hCurrentProcess)) {
         DWORD err = GetLastError();
         PrintError(err, "OpenProcessToken failed");
-        return -22;
+        return 2;
     }
 
     PTOKEN_PRIVILEGES ptoken_privileges;
@@ -123,8 +123,6 @@ int main (int argc, char *argv[]) {
 
     int ConsoleSessionId = WTSGetActiveConsoleSessionId();
     std::cout << "Console Session ID: " << ConsoleSessionId << std::endl;
-    BOOL bPrivDisabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, FALSE);
-    std::cout << "SE_TCB_NAME privilege was disabled? " << bPrivDisabled << std::endl;
 
     // Duplicate the console users token to run an (probably unelevated) process completely in THEIR context
     /*
@@ -136,7 +134,7 @@ int main (int argc, char *argv[]) {
     if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
         CloseHandle(hUserSessionToken);
         std::cerr << "FAILED to duplicate console users token!" << std::endl;
-        return -800;
+        return 3;
     }
     CloseHandle(hUserSessionToken);
     */
@@ -145,10 +143,12 @@ int main (int argc, char *argv[]) {
     HANDLE hDupToken;
     if (!DuplicateTokenEx(hCurrentProcess, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hDupToken)) {
         PrintError(GetLastError(), "Failed to duplicate our/this process token.");
-        return -800;
+        return 3;
     }
 
-    SetTokenInformation(hDupToken, TokenSessionId, &ConsoleSessionId, sizeof(int));
+    if (!SetTokenInformation(hDupToken, TokenSessionId, &ConsoleSessionId, sizeof(int))) {
+        PrintError(GetLastError(), "Failed to change session ID of token!");
+    };
 
     HANDLE hNewProcessToken = hDupToken;
 
@@ -158,7 +158,7 @@ int main (int argc, char *argv[]) {
     HANDLE job = CreateJobObject(NULL, NULL);
     if (! job) {
         PrintError(GetLastError(), "Could not create job object.");
-        return -2;
+        return 4;
     }
 
     // See documentation at: https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information
@@ -171,8 +171,12 @@ int main (int argc, char *argv[]) {
 
     if (! SetInformationJobObject(job, JobObjectExtendedLimitInformation, &jobLimit, sizeof(jobLimit)) ) {
         PrintError(GetLastError(), "Could not set job information on job");
-        return -3;
+        return 5;
     }
+
+    // After SetTokenInformation the TCB privilege is not needed anymore
+    BOOL bPrivDisabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, FALSE);
+    std::cout << "SE_TCB_NAME privilege was disabled? " << bPrivDisabled << std::endl;
 
     STARTUPINFO si = { sizeof(si) };
     si.wShowWindow = TRUE;
@@ -208,7 +212,7 @@ int main (int argc, char *argv[]) {
         CloseHandle(hNewProcessToken);
 
         PrintError(err, "Could not create process.");
-        return -4;
+        return 6;
     }
 
     CloseHandle(hNewProcessToken);
@@ -216,7 +220,7 @@ int main (int argc, char *argv[]) {
     if (! AssignProcessToJobObject(job, pi.hProcess) ) {
         DWORD err = GetLastError();
         PrintError(err, "Could not assign process to job.");
-        return -5;
+        return 7;
     }
 
     ResumeThread(pi.hThread);
