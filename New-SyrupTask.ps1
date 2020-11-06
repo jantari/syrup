@@ -5,7 +5,7 @@
 
 [CmdletBinding()]
 Param (
-    [string]$SyrupExeTargetPath = 'C:\Program Files (x86)\syrup',
+    [string]$SyrupExeTargetPath = if ([Environment]::Is64BitOperatingSystem) { "${env:ProgramFiles(x86)}\syrup" } else { "${env:ProgramFiles}\syrup" }
     [Parameter( Mandatory = $true )]
     [string]$ProgramToRunElevated,
     [string]$ScheduledTaskName = 'syrup Run Elevated Process',
@@ -43,13 +43,16 @@ if (-not (Test-Path $SyrupExeTargetPath -PathType Container)) {
 }
 
 if (-not $FixPermissions) {
+    Write-Warning "*****************************************************************************************************"
     Write-Warning "Make SURE standard users do not have any form of write- or modify access to $SyrupExeTargetPath !"
     Write-Warning "Failure to ensure this WILL compromise this system! Read-Permissions are fine but not needed either."
     Write-Warning "You can use the -FixPermissions switch to skip this warning and automatically set correct permissions."
+    Write-Warning "*****************************************************************************************************"
 } else {
     Write-Warning "Automatic permission fix is not yet implemented."
 }
 
+Write-Verbose "Copying 'syrup.exe' executable to '$SyrupExeTargetPath'"
 Copy-Item -LiteralPath ".\syrup.exe" -Destination $SyrupExeTargetPath
 
 # For tidiness, we create all of our scheduled tasks in a subfolder
@@ -76,13 +79,15 @@ $ScheduledTask = @{
     'Principal' = $StUsersPrincipal
 }
 
+Write-Verbose "Creating scheduled task: '\${ScheduledTasksSubfolder}\${ScheduledTaskName}'"
 $NewTask = Register-ScheduledTask @ScheduledTask
 
+Write-Verbose "Setting the scheduled task to run as NT AUTHORITY\SYSTEM user"
 #Set-ScheduledTask -TaskName $ScheduledTaskName -Principal $StSystemPrincipal
 $null = Set-ScheduledTask -InputObject $NewTask -User 'NT AUTHORITY\SYSTEM'
 #Set-ScheduledTask -InputObject $NewTask -Principal $StSystemPrincipal
 
-Write-Verbose "Adjusting permissions of scheduled task so standard users can run it"
+Write-Verbose "Getting the permissions (SD) on the scheduled task"
 $RegPathToTask = "Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tree\${ScheduledTasksSubfolder}\${ScheduledTaskName}"
 
 # Get the current Permissions SDDL
@@ -91,6 +96,7 @@ $SDBin = (Get-ItemProperty "HKLM:\${RegPathToTask}").SD
 $CurrentTaskSDDL = ([wmiclass]"Win32_SecurityDescriptorHelper").BinarySDToSDDL($SDBin).SDDL
 
 # Set the permissions for standard users or authenticated users
+Write-Verbose "Adjusting permissions of the scheduled task so standard users can run it"
 
 # Authenticated Users: Allow ReadAndExecute
 # 120099 (Read + ExecuteKey) IS NOT ENOUGH PERMISSIONS!
@@ -98,7 +104,6 @@ $CurrentTaskSDDL = ([wmiclass]"Win32_SecurityDescriptorHelper").BinarySDToSDDL($
 $AppendSDDL = '(A;ID;0x1200a9;;;AU)'
 
 $NewTaskSDDL = "${CurrentTaskSDDL}${AppendSDDL}"
-Write-Host "New Task SD: $NewTaskSDDL"
 $BinaryNewSD = ([wmiclass]'Win32_SecurityDescriptorHelper').SDDLToBinarySD($NewTaskSDDL).BinarySD
 
 # Give ourselves write permission to the Registry Key of the task to change SD
@@ -115,7 +120,7 @@ namespace Win32Api {
     }
 }'
 
-Add-Type -TypeDefinition $definition
+Add-Type -TypeDefinition $definition -Verbose:$false
 $null = [Win32Api.NtDll]::RtlAdjustPrivilege(9, $true, $false, [ref]$false)
 
 $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
@@ -133,5 +138,5 @@ $key.SetAccessControl($keyACL)
 # Set new SD
 Set-ItemProperty -LiteralPath "HKLM:\${RegPathToTask}" -Name SD -Value $BinaryNewSD
 
-Write-Host "Done" -ForegroundColor Green
+Write-Host "Done!" -ForegroundColor Green
 
