@@ -5,16 +5,25 @@
 
 [CmdletBinding()]
 Param (
-    [string]$SyrupExeTargetPath = if ([Environment]::Is64BitOperatingSystem) { "${env:ProgramFiles(x86)}\syrup" } else { "${env:ProgramFiles}\syrup" }
+    [string]$SyrupExeTargetPath,
     [Parameter( Mandatory = $true )]
     [string]$ProgramToRunElevated,
     [string]$ScheduledTaskName = 'syrup Run Elevated Process',
     [string]$ScheduledTasksSubfolder = 'syrup',
-    [switch]$FixPermissions
+    [switch]$FixPermissions,
+    [switch]$CreateShortcut
 )
 
 Set-StrictMode -Version 2.0
 $script:ErrorActionPreference = 'Stop'
+
+if (-not $SyrupExeTargetPath) {
+    $SyrupExeTargetPath = if ([Environment]::Is64BitOperatingSystem) {
+        "${env:ProgramFiles(x86)}\syrup"
+    } else {
+        "${env:ProgramFiles}\syrup"
+    }
+}
 
 function Test-RunningAsAdmin {
     $Identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -137,6 +146,17 @@ $key.SetAccessControl($keyACL)
 
 # Set new SD
 Set-ItemProperty -LiteralPath "HKLM:\${RegPathToTask}" -Name SD -Value $BinaryNewSD
+
+if ($CreateShortcut) {
+    Write-Verbose "Creating a shortcut to run the scheduled task/the application through syrup"
+    $WshShell = New-Object -comObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut("Syrup-Shortcut.lnk")
+    $Shortcut.TargetPath = "schtasks.exe"
+    $Shortcut.Arguments = "/RUN /TN `"$ScheduledTasksSubfolder\$ScheduledTaskName`""
+    $Shortcut.IconLocation = "$ProgramToRunElevated"
+    $Shortcut.WindowStyle = 7 # Minimized
+    $Shortcut.Save()
+}
 
 Write-Host "Done!" -ForegroundColor Green
 
