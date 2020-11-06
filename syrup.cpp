@@ -2,6 +2,8 @@
 #include <iostream> // for count and endl
 #include <iomanip> // for setfill and setw
 #include <system_error> // to avoid having to use FormatMessage()
+#include <accctrl.h> // for EXPLICIT_ACCESS and setting process ACL
+#include <aclapi.h> // For building and setting process ACL
 
 #include <wtsapi32.h> // for getting session information
 #pragma comment(lib, "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.19041.0\\um\\x86\\wtsapi32.lib") // this precents the program from compiling to x64 for now! FIX
@@ -53,6 +55,51 @@ BOOL SetPrivilege(
     };
 
     return TRUE;
+}
+
+static const bool AllowEveryoneToKillProcess(HANDLE hProcess)
+{
+    EXPLICIT_ACCESS grantAccess = {0};
+    DWORD dwAccessPermissions = PROCESS_TERMINATE;
+    // This function creates an EXPLICIT_ACCESS structure, but it can only take a user NAME (string)
+    // AFAIK there is no equivalent that takes an SID, so we have to create the structure manually instead
+    // BuildExplicitAccessWithName( &grantAccess, "NT AUTHORITY\\INTERACTIVE", dwAccessPermissions, GRANT_ACCESS, NO_INHERITANCE );
+
+    // Create a well-known SID for the Everyone group.
+    PSID pEveryoneSID = NULL;
+    SID_IDENTIFIER_AUTHORITY SIDAuthWorld = SECURITY_WORLD_SID_AUTHORITY;
+    if(!AllocateAndInitializeSid(&SIDAuthWorld, 1,
+        SECURITY_WORLD_RID,
+        0, 0, 0, 0, 0, 0, 0,
+        &pEveryoneSID))
+    {
+        std::cout << "AllocateAndInitializeSid Error %u\n" << GetLastError() << std::endl;
+        FreeSid(pEveryoneSID);
+    }
+
+    // Initialize an EXPLICIT_ACCESS structure for an ACE.
+    // The ACE will allow Everyone read access to the key.
+    ZeroMemory(&grantAccess, sizeof(EXPLICIT_ACCESS));
+    grantAccess.grfAccessPermissions = READ_CONTROL | SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION;
+    grantAccess.grfAccessMode        = GRANT_ACCESS;
+    grantAccess.grfInheritance       = NO_INHERITANCE;
+    //grantAccess.grfInheritance       = NO_INHERITANCE | SUB_CONTAINERS_AND_OBJECTS_INHERIT;
+    grantAccess.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+    grantAccess.Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+    grantAccess.Trustee.ptstrName    = (LPTSTR) pEveryoneSID;
+
+    // End creating EXPLICIT_ACCESS structure, on with the program
+
+    PACL pTempDacl = NULL;
+    DWORD dwErr = 0;
+    dwErr = SetEntriesInAcl( 1, &grantAccess, NULL, &pTempDacl );
+    std::cout << "SetEntriesInAcl: " << dwErr << std::endl;
+    // check dwErr...
+    dwErr = SetSecurityInfo( hProcess, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, pEveryoneSID, NULL, pTempDacl, NULL );
+    std::cout << "SetSecurityInfo: " << dwErr << std::endl;
+    // check dwErr...
+    LocalFree( pTempDacl );
+    return dwErr == ERROR_SUCCESS;
 }
 
 std::string LuidToName(LUID luid) {
@@ -214,6 +261,9 @@ int main (int argc, char *argv[]) {
         PrintError(err, "Could not create process.");
         return 6;
     }
+
+    std::cout << "New Process Handle: " << pi.hProcess << std::endl;
+    AllowEveryoneToKillProcess(pi.hProcess);
 
     CloseHandle(hNewProcessToken);
 
