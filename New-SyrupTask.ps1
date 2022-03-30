@@ -10,7 +10,6 @@ Param (
     [string]$ProgramToRunElevated,
     [string]$ScheduledTaskName = 'syrup Run Elevated Process',
     [string]$ScheduledTasksSubfolder = 'syrup',
-    [switch]$FixPermissions,
     [switch]$CreateShortcut
 )
 
@@ -51,15 +50,11 @@ if (-not (Test-Path $SyrupExeTargetPath -PathType Container)) {
     $null = mkdir $SyrupExeTargetPath
 }
 
-if (-not $FixPermissions) {
-    Write-Warning "*****************************************************************************************************"
-    Write-Warning "Make SURE standard users do not have any form of write- or modify access to $SyrupExeTargetPath !"
-    Write-Warning "Failure to ensure this WILL compromise this system! Read-Permissions are fine but not needed either."
-    Write-Warning "You can use the -FixPermissions switch to skip this warning and automatically set correct permissions."
-    Write-Warning "*****************************************************************************************************"
-} else {
-    Write-Warning "Automatic permission fix is not yet implemented."
-}
+Write-Warning "*****************************************************************************************************"
+Write-Warning "Make SURE no standard users have any form of write- or modify access to '$SyrupExeTargetPath' !"
+Write-Warning "Failure to ensure this will result in standard users being able to run arbitrary programs with elevated"
+Write-Warning "privileges by replacing 'syrup.exe' with another file. Read-Permissions are fine but not needed either."
+Write-Warning "*****************************************************************************************************"
 
 Write-Verbose "Copying 'syrup.exe' executable to '$SyrupExeTargetPath'"
 Copy-Item -LiteralPath ".\syrup.exe" -Destination $SyrupExeTargetPath
