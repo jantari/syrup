@@ -1,4 +1,4 @@
-<#
+﻿<#
 
 
 #>
@@ -79,6 +79,7 @@ catch {
 $action = New-ScheduledTaskAction "$SyrupExeTargetPath\syrup.exe" -Argument "`"$ProgramToRunElevated`""
 $StSystemPrincipal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType Password -RunLevel Limited
 $StUsersPrincipal = New-ScheduledTaskPrincipal -GroupID "S-1-5-32-545"
+$StSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
 $ScheduledTask = @{
     'TaskName' = $ScheduledTaskName
@@ -86,6 +87,7 @@ $ScheduledTask = @{
     'Action' = $Action
     'TaskPath' = $ScheduledTasksSubfolder
     'Principal' = $StUsersPrincipal
+    'Settings' = $StSettings
 }
 
 Write-Verbose "Creating scheduled task: '\${ScheduledTasksSubfolder}\${ScheduledTaskName}'"
