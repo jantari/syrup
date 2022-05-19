@@ -1,6 +1,27 @@
 ﻿<#
+    .SYNOPSIS
+    Creates a scheduled task that runs as a privileged account
+    and launches an arbitrary executable through syrup, but
+    that can itself be run by an unprivileged, standard user.
 
+    .PARAMETER SyrupExeTargetPath
+    The directory to which syrup.exe will be copied and run from.
 
+    .PARAMETER ProgramToRunElevated
+    The path to the executable to be launched with elevated privileges.
+
+    .PARAMETER ScheduledTaskName
+    The name of the scheduled task that will launch syrup.
+    If you create multiple on the same computer the names must be different.
+
+    .PARAMETER ScheduledTasksSubfolder
+    The name of the folder in Task Scheduler that the task will be created in.
+    By keeping all syrup-tasks in their own subfolder it keeps things tidier
+    and makes them easier to discover or remove in the future.
+
+    .PARAMETER CreateShortcut
+    Create a shortcut that launches the syrup task and therefore the elevated
+    program on demand. This shortcut can be moved to wherever is convenient.
 #>
 
 [CmdletBinding()]
