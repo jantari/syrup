@@ -31,7 +31,7 @@ void PrintError(DWORD error, std::wstring message = L"ERROR!") {
         NULL,
         error,
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // default language
-        (LPTSTR) &errorMeaning,
+        (LPWSTR) &errorMeaning,
         0,
         NULL
     );
