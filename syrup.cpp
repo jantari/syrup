@@ -78,6 +78,14 @@ BOOL SetPrivilege(
         return FALSE;
     };
 
+    // AdjustTokenPrivileges has failed EITHER when it returns 0 OR
+    // when it returns non-zero but GetLastError is ERROR_NOT_ALL_ASSIGNED
+    // https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-adjusttokenprivileges#return-value
+    if (GetLastError() == ERROR_NOT_ALL_ASSIGNED) {
+        PrintError(ERROR_NOT_ALL_ASSIGNED, L"AdjustTokenPrivileges could not adjust one or more privileges because the specified token did not hold them");
+        return FALSE;
+    }
+
     return TRUE;
 }
 
