@@ -249,7 +249,11 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
 
     wprintf(L"CmdLine w/o module: %ls \n", CommandLine);
 
-    if (!CreateProcessAsUser(hNewProcessToken, NULL, CommandLine, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
+    // CreateProcessAsUser may modify this string and the documentation for
+    // GetCommandLine says not to do that, so copy it to a new string and pass that
+    LPWSTR lpCommandLine = wcsdup(CommandLine);
+
+    if (!CreateProcessAsUser(hNewProcessToken, NULL, lpCommandLine, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
         DWORD err = GetLastError();
         CloseHandle(hNewProcessToken);
 
