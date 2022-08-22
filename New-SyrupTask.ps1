@@ -10,6 +10,9 @@
     .PARAMETER ProgramToRunElevated
     The path to the executable to be launched with elevated privileges.
 
+    .PARAMETER ProgramArguments
+    Optional arguments to pass on to the program.
+
     .PARAMETER ScheduledTaskName
     The name of the scheduled task that will launch syrup.
     If you create multiple on the same computer the names must be different.
@@ -29,6 +32,7 @@ Param (
     [string]$SyrupExeTargetPath,
     [Parameter( Mandatory = $true )]
     [string]$ProgramToRunElevated,
+    [string]$ProgramArguments,
     [string]$ScheduledTaskName = 'syrup Run Elevated Process',
     [string]$ScheduledTasksSubfolder = 'syrup',
     [switch]$CreateShortcut
@@ -92,7 +96,11 @@ catch {
     $rootFolder.CreateFolder("$ScheduledTasksSubfolder")
 }
 
-$action = New-ScheduledTaskAction "$SyrupExeTargetPath\syrup.exe" -Argument "`"$ProgramToRunElevated`""
+if ($ProgramArguments) {
+    $action = New-ScheduledTaskAction "$SyrupExeTargetPath\syrup.exe" -Argument "`"$ProgramToRunElevated`" $ProgramArguments"
+} else {
+    $action = New-ScheduledTaskAction "$SyrupExeTargetPath\syrup.exe" -Argument "`"$ProgramToRunElevated`""
+}
 $StSystemPrincipal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType Password -RunLevel Limited
 $StUsersPrincipal = New-ScheduledTaskPrincipal -GroupID "S-1-5-32-545"
 $StSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries

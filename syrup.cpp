@@ -113,13 +113,6 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
         return 1;
     }
 
-    if (argc > 2) {
-        std::wcerr << "Too many arguments: Supply only the path of an executable and wrap it in quotes if it contains spaces!" << std::endl;
-        std::wcerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
-        std::wcerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
-        return 1;
-    }
-
     // User session and token stuff
     //
 
@@ -236,9 +229,27 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
         }
     }
 
-    LPWSTR lpApplication = wcsdup( argv[1] );
+    // Get our own command line but skip the first argument (module name)
+    // Implementation taken from Wine: https://source.winehq.org/git/wine.git/blob/5a66eab72:/dlls/shcore/main.c#l264
+    LPWSTR CommandLine = GetCommandLine();
+    wprintf(L"CmdLine: %ls \n", CommandLine);
 
-    if (!CreateProcessAsUser(hNewProcessToken, lpApplication, NULL, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
+    if (*CommandLine == L'"') {
+        ++CommandLine;
+        while (*CommandLine)
+            if (*CommandLine++ == L'"')
+                break;
+    } else {
+        while (*CommandLine && *CommandLine != L' ' && *CommandLine != L'\t')
+            ++CommandLine;
+    }
+    /* skip to the first argument, if any */
+    while (*CommandLine == L' ' || *CommandLine == L'\t')
+        CommandLine++;
+
+    wprintf(L"CmdLine w/o module: %ls \n", CommandLine);
+
+    if (!CreateProcessAsUser(hNewProcessToken, NULL, CommandLine, NULL, NULL, FALSE, ProcessFlags, NULL, NULL, &si, &pi)) {
         DWORD err = GetLastError();
         CloseHandle(hNewProcessToken);
 
