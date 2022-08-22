@@ -21,7 +21,8 @@ ECHO.
 
 rc.exe /d VRC_FILEDESCRIPTION="%LASTCOMMIT%%DIRTY%" /r versioninfo.rc
 
-cl.exe versioninfo.res syrup.cpp /EHsc
+:: Build with WCHAR / UCS-2 Unicode mode
+cl.exe /source-charset:utf-8 versioninfo.res syrup.cpp /EHsc /DUNICODE /D_UNICODE
 
 DEL syrup.obj
 DEL versioninfo.res
