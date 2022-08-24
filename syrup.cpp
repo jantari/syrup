@@ -22,8 +22,6 @@
 #pragma comment(lib, "advapi32.lib") // For token privilege lookup and adjustment stuff
 
 void PrintError(DWORD error, std::wstring message = L"ERROR!") {
-    std::wcout << std::endl;
-
     LPWSTR errorMeaning = L"";
 
     FormatMessage(
@@ -36,6 +34,7 @@ void PrintError(DWORD error, std::wstring message = L"ERROR!") {
         NULL
     );
 
+    std::wcout << std::endl;
     std::wcerr << message << std::endl;
     std::wcerr << L"0x" << std::setfill(L'0') <<std::setw(sizeof(DWORD)*2) << std::hex << error << std::dec << L" ";
     std::wcerr << L"(" << error << L") " << errorMeaning << std::endl;
@@ -140,34 +139,19 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
     ptoken_privileges = (PTOKEN_PRIVILEGES)LocalAlloc(LPTR, dwLength);
 
     if (!GetTokenInformation(hCurrentProcess, TokenPrivileges, ptoken_privileges, dwLength, &dwLength)) {
-        std::wcout << "FAILED to GetTokenInformation 2: " << GetLastError() << std::endl;
+        PrintError(GetLastError(), L"GetTokenInformation failed go get current process token privileges");
     }
 
     std::wcout << L"TokenPrivileges size: " << dwLength << std::endl;
-	PrintTokenPriv(ptoken_privileges);
+    PrintTokenPriv(ptoken_privileges);
 
-    // Enable the SE_TCB_NAME privilege for our process, needed to call WTSQueryUserToken
+    // Enable the SE_TCB_NAME privilege for our process, needed to call SetTokenInformation with TokenSessionId
     // https://docs.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
     BOOL bPrivEnabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, TRUE);
-    std::wcout << L"SE_TCB_NAME privilege was enabled? " << bPrivEnabled << std::endl;
+    std::wcout << L"SE_TCB_NAME privilege was enabled? " << (bPrivEnabled ? "True" : "False") << std::endl;
 
     int ConsoleSessionId = WTSGetActiveConsoleSessionId();
     std::wcout << L"Console Session ID: " << ConsoleSessionId << std::endl;
-
-    // Duplicate the console users token to run an (probably unelevated) process completely in THEIR context
-    /*
-    HANDLE hUserSessionToken;
-    HANDLE hDupUserSessionToken;
-    WTSQueryUserToken(ConsoleSessionId, &hUserSessionToken);
-    std::wcout << "WTSQueryUserToken LastError: " << GetLastError() << std::endl;
-
-    if (!DuplicateTokenEx(hUserSessionToken, TOKEN_ALL_ACCESS, NULL, SecurityIdentification, TokenPrimary, &hDupUserSessionToken)) {
-        CloseHandle(hUserSessionToken);
-        std::cerr << "FAILED to duplicate console users token!" << std::endl;
-        return 3;
-    }
-    CloseHandle(hUserSessionToken);
-    */
 
     // Duplicate our highly privileged token and adjust the SessionID to start a process in OUR context but on the users desktop
     HANDLE hDupToken;
@@ -181,6 +165,10 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
     };
 
     HANDLE hNewProcessToken = hDupToken;
+
+    // After SetTokenInformation the TCB privilege is not needed anymore
+    BOOL bPrivDisabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, FALSE);
+    std::wcout << L"SE_TCB_NAME privilege was disabled? " << (bPrivDisabled ? "True" : "False") << std::endl;
 
     //
     // End user session and token stuff
@@ -203,10 +191,6 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
         PrintError(GetLastError(), L"Could not set job information on job");
         return 5;
     }
-
-    // After SetTokenInformation the TCB privilege is not needed anymore
-    BOOL bPrivDisabled = SetPrivilege(hCurrentProcess, SE_TCB_NAME, FALSE);
-    std::wcout << L"SE_TCB_NAME privilege was disabled? " << bPrivDisabled << std::endl;
 
     STARTUPINFO si = { sizeof(si) };
     si.wShowWindow = TRUE;
