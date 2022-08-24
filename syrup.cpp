@@ -115,7 +115,7 @@ int wmain (int argc, wchar_t *argv[], wchar_t *envp[]) {
 
     if (argc < 2) {
         std::wcerr << "Not enough arguments: Supply the path of an executable!" << std::endl;
-        std::wcerr << "Syntax: syrup.exe path\\to\\file" << std::endl;
+        std::wcerr << "Syntax: syrup.exe \"path\\to\\file.exe\" [arguments]" << std::endl;
         std::wcerr << "The path can be absolute or relative to this file, but the environment PATH is not searched!" << std::endl;
         return 1;
     }
